@@ -12,8 +12,10 @@ class ResponseAgent:
             self.tts = pyttsx3.init()
 
     def say(self, text: str):
-        log.info("[Say] %s", text)
-        if self.enabled and self.tts:
-            self.tts.say(text)
-            self.tts.runAndWait()
+        lines = text.strip().splitlines()
+        for line in lines:
+            log.info("[Say] %s", line)
+            if self.enabled and self.tts:
+                self.tts.say(line)
+                self.tts.runAndWait()
         return text

@@ -1,41 +1,55 @@
-# 🎙️ AIP (Version 0)
+# 🎙️ Leo (Version 1)
 
-A **voice-activated AI assistant** embedded into **Linux (Debian-based systems)**.  
-This project is my **final year BTech project**, aiming to build an **autonomous AI system** that can execute commands, interact with the user, and manage system-level tasks using **natural language (voice or text)**.
+**Leo** is our Linux-based **voice (and text) assistant**, developed as part of our BTech final year project.
+This is **Version 1**, with major improvements from the prototype (v0).
+
+Leo can **listen to commands, check system status, manage processes, install packages (with confirmation), and control services** — while enforcing **safety checks** to avoid misuse.
 
 ---
 
-## 🚀 Features (Version 0 Prototype)
+## 🚀 New in Version 1
 
-- ✅ **Text & Voice Modes**  
-  - Run via text input (terminal)  
-  - Or use microphone for real-time voice commands  
+* ✅ Assistant renamed to **Leo**
+* ✅ **ConfirmAgent** → Listens for short "yes/no" answers (3–6s) using Vosk. Falls back to console input if unclear/no audio.
+* ✅ **Expanded Intents** in `intent_recognition.py`
 
-- ✅ **Command Execution**  
-  - Check system status (disk usage, memory usage)  
-  - Run safe package/service actions with confirmation  
+  * Install with version (`leo install curl=7.81`)
+  * Check package policy (`leo apt policy curl`)
+  * Check process (`leo is firefox running`)
+  * Kill PID safely (`leo kill pid 12345`)
+  * Show top N processes (`leo top 5`)
+  * Disk cleanup suggestion (`leo suggest cleanup`)
+  * Service control (`leo start ssh.service`, `leo stop apache2.service`)
+* ✅ **Safety Layer** (`safety.py`)
 
-- ✅ **Agents Implemented**
-  - **Voice Input Agent** → Captures voice commands  
-  - **Intent Recognition Agent** → Parses user commands  
-  - **Action Execution Agent** → Runs corresponding system commands  
-  - **Response Agent** → Gives user feedback in text/voice  
+  * Only allows whitelisted binaries
+  * Marks some actions as **admin-only**
+* ✅ **Improved Package Manager** (`package_manager.py`)
 
-- ✅ **Safety Layer**  
-  - Prompts for confirmation before package installs or service changes  
+  * Prechecks before install
+  * Streams output live to user
+* ✅ **Process Monitor** (`process_monitor.py`)
+
+  * List services
+  * Show top N processes
+  * Safe kill (prevents killing system-critical PIDs)
+* ✅ **Coordinator updates** (`assistant/coordinator.py`)
+
+  * Uses **ConfirmAgent** + **ResponseAgent** → confirmation prompt is spoken first, then Leo listens.
 
 ---
 
 ## 📦 Requirements
 
-- Linux Debian-based OS (tested on Ubuntu/Debian)
-- Python **3.9+**
-- `venv` (for virtual environment)
-- Microphone (for voice mode)
-- System dependencies:
-  - `ffmpeg`
-  - `sox`
-  - `portaudio` (for voice input)
+* Linux (Debian/Ubuntu recommended)
+* Python **3.9+**
+* Virtual environment (`venv`)
+* Microphone (for voice mode)
+* System dependencies:
+
+  * `ffmpeg`
+  * `sox`
+  * `portaudio`
 
 ---
 
@@ -53,30 +67,37 @@ source .venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 ```
+
 ---
 
 ## ▶️ Usage
 
-### 1. **Text Mode (No Mic)**
+### 1. **Text Mode (easier for testing)**
 
-Run commands by passing text directly:
+Run Leo with direct text commands:
 
 ```bash
-cd ~/voice-assistant
+cd ~/AIP
 source .venv/bin/activate
 
-# Examples
-python -m assistant.main --text "assistant say hello"
-python -m assistant.main --text "assistant check disk"
-python -m assistant.main --text "assistant check memory"
-python -m assistant.main --text "assistant is ffmpeg installed"
+# Examples:
+python -m assistant.main --text "leo check disk"
+python -m assistant.main --text "leo check memory"
+python -m assistant.main --text "leo top 5"
+python -m assistant.main --text "leo apt policy curl"
+python -m assistant.main --text "leo is curl installed"
+python -m assistant.main --text "leo install sl"      # safe package to test install
+python -m assistant.main --text "leo status ssh.service"
+python -m assistant.main --text "leo kill pid 99999"  # test with dummy pid
 ```
+
+⚠️ **Do not try to kill important system PIDs (≤100).**
 
 ---
 
-### 2. **Voice Mode (Mic)**
+### 2. **Voice Mode (mic)**
 
-Run the assistant with microphone input:
+Run Leo with microphone input:
 
 ```bash
 ./run.sh
@@ -85,52 +106,78 @@ Run the assistant with microphone input:
 Then say:
 
 ```
-assistant check disk
-assistant check memory
-assistant say hello
+leo check disk
+leo check memory
+leo install sl
 ```
 
-For package installations or service actions, the assistant will **prompt in the terminal** for a yes/no confirmation. (Voice confirmation coming soon!)
+Leo will:
+
+* Ask for confirmation (voice preferred, console fallback)
+* Stream outputs in real time
 
 ---
 
-## 📌 Roadmap
+## 🔐 Sudoers Setup (Important)
 
-* [ ] Add **voice-based confirmation** for installs and service actions
-* [ ] Improve **NLP model** for better intent recognition
-* [ ] Add **context awareness** (check if software is already installed, available disk space, etc.)
-* [ ] Implement more **agents**:
+Some actions (like installing packages or controlling services) need `sudo`.
+Instead of entering your password every time, you can allow Leo **specific commands without a password**.
 
-  * Package Manager Agent
-  * Process Monitor Agent
-* [ ] Package as a **background service (daemon)** for Linux
+⚠️ **Do NOT grant unrestricted rights.** Only allow the commands you fully understand.
 
----
+Create file:
 
-## 📖 Project Goal
+```bash
+sudo visudo -f /etc/sudoers.d/voice-assistant
+```
 
-The end goal is to create an AI assistant that:
+Paste (replace `yourusername` with your Linux username):
 
-* Runs as a **background service** in Linux
-* Listens for **voice or text commands**
-* Executes **system-level actions safely**
-* Provides **natural feedback** to the user
-* Learns **user preferences** and makes **proactive decisions**
+```
+# voice-assistant: allow specific apt-get and systemctl actions for Leo
+# WARNING: this allows package install and service control via assistant
+yourusername ALL=(ALL) NOPASSWD: /usr/bin/apt-get, /usr/bin/apt, /bin/systemctl, /bin/kill, /usr/bin/kill
+```
 
----
+Set permissions:
 
-## 🛠️ Current Status
+```bash
+sudo chmod 440 /etc/sudoers.d/voice-assistant
+sudo -l -U yourusername
+```
 
-This is **Version 0** (prototype).
-
-* Works in **text mode** and **basic voice mode**
-* Can check disk, memory, respond with greetings, and verify installations
-* Confirmation is **terminal-based only**
+✅ Test with a safe command (e.g., installing `sl`).
 
 ---
 
-## 👨‍💻 Author
+## 🧪 What to Test Now
 
-* **Gopu Girish, Shamir Ashraf, Yadhu Krishnan PU** (Final Year BTech Project)
-* Project Repository: [GitHub](https://github.com/shamiroxs/AIP)
+* Disk & memory checks
+* Top N processes
+* Package policy check
+* Install `sl` (safe, small package)
+* Service status (e.g., `ssh.service`)
+* Dummy PID kill test
 
+---
+
+## ⚠️ Problems / Things to Improve
+
+* [ ] Speech recognition accuracy
+* [ ] Text-to-speech quality
+* [ ] Add a dashboard (UI for monitoring commands + logs)
+
+---
+
+## 🛠️ Next Steps
+
+* Provide **wrapper scripts** for safer sudoers configuration
+* Add stricter argument validation
+* Expand Leo’s supported commands
+
+---
+
+## 👨‍💻 Authors
+
+* **Gopu Girish, Shamir Ashraf, Yadhu Krishnan PU**
+* GitHub: [shamiroxs/AIP](https://github.com/shamiroxs/AIP)
