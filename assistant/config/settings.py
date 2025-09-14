@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Debian Voice Assistant"
     WAKE_WORD: str = "leo"          # Say "leo ..." before a command
     SAMPLE_RATE: int = 16000
-    VOSK_MODEL_DIR: str = str(Path(__file__).resolve().parent.parent / "models" / "vosk" / "en-us")
+    VOSK_MODEL_DIR: str = str(Path(__file__).resolve().parent.parent / "models" / "vosk" / "en-in")
     ENABLE_TTS: bool = True
     # safety: require explicit "yes" confirmation for privileged actions
     REQUIRE_CONFIRMATION_FOR_ROOT: bool = True
