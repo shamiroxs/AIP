@@ -1,7 +1,25 @@
-vosk
-sounddevice
-pyttsx3
 pydantic
 pyyaml
 rich
-TTS
+
+# Core
+numpy
+requests
+beautifulsoup4
+
+# NLP / Speech
+vosk
+transformers
+torch
+torchaudio
+torchvision
+sounddevice
+pyttsx3<2.0
+
+# GUI automation & X11
+python-xlib
+pyxdg
+
+# Extra utilities
+youtube-search-python
+pytest
