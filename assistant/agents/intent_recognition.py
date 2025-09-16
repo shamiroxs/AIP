@@ -40,7 +40,7 @@ class IntentRecognitionAgent:
         if m:
             return Intent(name="check_installed", package=m.group(1))
 
-        m = re.match(r"(?:policy|apt policy|search)\s+([a-z0-9\-\._]+)", t)
+        m = re.match(r"(?:policy|apt policy)\s+([a-z0-9\-\._]+)", t)
         if m:
             return Intent(name="pkg_policy", package=m.group(1))
 
@@ -71,13 +71,23 @@ class IntentRecognitionAgent:
         # --------------------------
         # GUI / App intents
         # --------------------------
+
+        # --- Check for URL intent ---
+        m = re.match(r"(?:open|go to|visit)\s+([^\s]+)", t, re.IGNORECASE)
+        if m:
+            url = m.group(1)
+
+            # Case 1: Explicit http/https URL
+            if url.startswith("http://") or url.startswith("https://"):
+                return Intent(name="open_url", url=url)
+
+            # Case 2: Domain with a dot (smarter detection)
+            elif re.match(r".+\.[a-zA-Z]{2,}(/.*)?$", url):
+                return Intent(name="open_url", url="https://" + url)
+
         m = re.match(r"(?:open|launch|start)\s+([a-z0-9\-\._]+)(?:\s+app|browser)?", t)
         if m:
             return Intent(name="open_app", extra=m.group(1))
-
-        m = re.match(r"(?:open|go to|visit)\s+(https?://[^\s]+)", t)
-        if m:
-            return Intent(name="open_url", url=m.group(1))
 
         # --------------------------
         # Email intent
@@ -94,19 +104,12 @@ class IntentRecognitionAgent:
             )
 
         # --------------------------
-        # YouTube intents
+        # Search intents
         # --------------------------
-        m = re.match(r"(?:open )?youtube (?:and )?(?:search|find|look for)\s+(.+)", t)
+        m = re.match(r"(?:search|find|look for)\s+(.+)", t)
         if m:
             query = m.group(1)
-            return Intent(name="youtube_search", query=query)
-
-        if "play first video" in t:
-            return Intent(name="youtube_play_first")
-
-        m = re.match(r"play (?:video )?number (\d+)", t)
-        if m:
-            return Intent(name="youtube_play_by_index", index=int(m.group(1)))
+            return Intent(name="search_query", query=query)
 
         # --------------------------
         # Misc

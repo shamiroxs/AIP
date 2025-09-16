@@ -1,6 +1,7 @@
 # assistant/agents/action_execution.py
 import shlex
 import subprocess, shutil
+import time
 from assistant.agents.safety import SafetyAgent
 from assistant.agents.package_manager import PackageManagerAgent
 from assistant.agents.process_monitor import ProcessMonitorAgent
@@ -137,6 +138,35 @@ class ActionExecutionAgent:
                 return f"Failed to launch: {r.stdout.strip()}"
             else:
                 return "Launched."
+
+        if intent.name == "compose_mail" and intent.recipient and intent.body:
+            url = f"https://mail.google.com/mail/?view=cm&to={intent.recipient}&su={intent.subject}&body={intent.body}"
+            gui.open_url(url)
+
+            time.sleep(3)
+            gui.focus_window("Gmail")
+
+            return f"Opened Gmail compose window for {intent.recipient}."
+
+        if intent.name == "open_url" and intent.url:
+            url = intent.url
+            if url:
+                gui.open_url(url)
+                return f"opened url: {url}"
+
+
+        if intent.name == "search_query" and intent.query:
+            # --- General Search Intent ---
+            search_query = intent.query
+            link = first_search_result(search_query)
+
+            if link:
+                gui.open_url(link)
+                return f"Searched for '{search_query}' and opened top result: {link}"
+            else:
+                url = f"https://www.google.com/search?q={search_query}"
+                gui.open_url(url)
+                return f"Searched for '{search_query}', but no direct result found. Opened Google instead: {url}"
 
         # --- Voice Output (Echo/Speak) ---
         if intent.name == "speak_text" and intent.text:

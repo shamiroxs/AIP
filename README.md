@@ -1,103 +1,106 @@
-# 🎙️ Leo (Version 1)
+# 🎙️ Leo (Version 2)
 
-**Leo** is our Linux-based **voice (and text) assistant**, developed as part of our BTech final year project.
-This is **Version 1**, with major improvements from the prototype (v0).
+**Leo** is our Linux-based **voice + text assistant**, developed as part of our BTech final year project.
 
-Leo can **listen to commands, check system status, manage processes, install packages (with confirmation), and control services** — while enforcing **safety checks** to avoid misuse.
+This is **Version 2**, building on top of V1 with major **environment setup tools** and a new **GUI Agent** for desktop automation.
 
 ---
 
-## 🚀 New in Version 1
+## 🚀 What’s New in Version 2
 
-* ✅ Assistant renamed to **Leo**
-* ✅ **ConfirmAgent** → Listens for short "yes/no" answers (3–6s) using Vosk. Falls back to console input if unclear/no audio.
-* ✅ **Expanded Intents** in `intent_recognition.py`
+* ✅ **Setup Scripts**
 
-  * Install with version (`leo install curl=7.81`)
-  * Check package policy (`leo apt policy curl`)
-  * Check process (`leo is firefox running`)
-  * Kill PID safely (`leo kill pid 12345`)
-  * Show top N processes (`leo top 5`)
-  * Disk cleanup suggestion (`leo suggest cleanup`)
-  * Service control (`leo start ssh.service`, `leo stop apache2.service`)
-* ✅ **Safety Layer** (`safety.py`)
+  * `setup_env.sh` → Installs all Debian packages, sets up Python virtual environment, and installs Python dependencies.
+  * `check_env.sh` → Verifies system environment:
 
-  * Only allows whitelisted binaries
-  * Marks some actions as **admin-only**
-* ✅ **Improved Package Manager** (`package_manager.py`)
+    * Confirms X11 session is running
+    * Checks microphone availability
+    * Checks required tools (`xdotool`, `wmctrl`, `sox`, etc.)
 
-  * Prechecks before install
-  * Streams output live to user
-* ✅ **Process Monitor** (`process_monitor.py`)
+* ✅ **GUI Agent (X11 Automation)**
 
-  * List services
-  * Show top N processes
-  * Safe kill (prevents killing system-critical PIDs)
-* ✅ **Coordinator updates** (`assistant/coordinator.py`)
+  * Launch apps (`xdg-open`, `subprocess.Popen`)
+  * Focus and control windows (`xdotool`, `wmctrl`)
+  * Type text into active apps
+  * Simulate key presses and mouse actions
+  * Open URLs in the default browser
+  * Take screenshots for debugging/feedback
 
-  * Uses **ConfirmAgent** + **ResponseAgent** → confirmation prompt is spoken first, then Leo listens.
+* ✅ **New Intents**
+
+  * `open_url` → open a webpage
+  * `compose_mail` → quick email drafting
+  * `search_query` → web search for queries
+
+* ✅ **Improved Package Install**
+
+  * If `apt install` fails (package not found):
+
+    * Leo searches the web for install guides.
+    * Automatically opens the first result in your browser.
+    * Falls back to Google search if no guide found.
 
 ---
 
 ## 📦 Requirements
 
-* Linux (Debian/Ubuntu recommended)
+* Debian **11/12** (X11 session required – **NOT Wayland**)
 * Python **3.9+**
-* Virtual environment (`venv`)
-* Microphone (for voice mode)
-* System dependencies:
-
-  * `ffmpeg`
-  * `sox`
-  * `portaudio`
+* Microphone + working audio (ALSA/PulseAudio)
+* Sudo privileges for installing system packages
 
 ---
 
-## 🔧 Installation
+## 🔧 Installation (Beginner-Friendly)
+
+### 1. Clone the repo
 
 ```bash
-# Clone the repo
 git clone https://github.com/shamiroxs/AIP.git
 cd AIP
-
-# Create and activate virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
 ```
+
+### 2. Run the setup script
+
+```bash
+chmod +x setup_env.sh
+./setup_env.sh
+```
+
+This will:
+
+* Install required Debian packages (`ffmpeg`, `sox`, `portaudio19-dev`, `xdotool`, `wmctrl`, etc.)
+* Create a Python virtual environment
+* Install all Python dependencies from `requirements.txt`
+
+### 3. Check your environment
+
+```bash
+chmod +x check_env.sh
+./check_env.sh
+```
+
+This script will tell you if:
+
+* You are running in **X11** (✅ required for GUI automation)
+* Your microphone is detected
+* Required tools are installed
+
+⚠️ **If you see “Wayland” instead of “X11” → Log out and select “X11 session” before running Leo.**
 
 ---
 
 ## ▶️ Usage
 
-### 1. **Text Mode (easier for testing)**
-
-Run Leo with direct text commands:
+### Text Mode (safe for testing)
 
 ```bash
-cd ~/AIP
 source .venv/bin/activate
-
-# Examples:
-python -m assistant.main --text "leo check disk"
-python -m assistant.main --text "leo check memory"
-python -m assistant.main --text "leo top 5"
-python -m assistant.main --text "leo apt policy curl"
-python -m assistant.main --text "leo is curl installed"
-python -m assistant.main --text "leo install sl"      # safe package to test install
-python -m assistant.main --text "leo status ssh.service"
-python -m assistant.main --text "leo kill pid 99999"  # test with dummy pid
+python -m assistant.main --text "leo mail to user@mail.com hello sam"
+python -m assistant.main --text "leo search python file handling"
 ```
 
-⚠️ **Do not try to kill important system PIDs (≤100).**
-
----
-
-### 2. **Voice Mode (mic)**
-
-Run Leo with microphone input:
+### Voice Mode (mic)
 
 ```bash
 ./run.sh
@@ -106,74 +109,53 @@ Run Leo with microphone input:
 Then say:
 
 ```
-leo check disk
-leo check memory
-leo install sl
+leo open firefox
+leo mail to user@mail.com hello sam
 ```
 
 Leo will:
 
-* Ask for confirmation (voice preferred, console fallback)
-* Stream outputs in real time
+* Confirm via voice/console
+* Run system commands OR control desktop apps
 
 ---
 
-## 🔐 Sudoers Setup (Important)
-
-Some actions (like installing packages or controlling services) need `sudo`.
-Instead of entering your password every time, you can allow Leo **specific commands without a password**.
-
-⚠️ **Do NOT grant unrestricted rights.** Only allow the commands you fully understand.
-
-Create file:
+## 🖥️ GUI Agent Examples
 
 ```bash
-sudo visudo -f /etc/sudoers.d/voice-assistant
+# Open YouTube
+python -m assistant.main --text "leo open youtube.com"
+
+# Compose an email draft
+python -m assistant.main --text "leo mail to test@mail.com hey, checking Leo V2!"
+
+# Search Google
+python -m assistant.main --text "leo search install python on debian"
 ```
-
-Paste (replace `yourusername` with your Linux username):
-
-```
-# voice-assistant: allow specific apt-get and systemctl actions for Leo
-# WARNING: this allows package install and service control via assistant
-yourusername ALL=(ALL) NOPASSWD: /usr/bin/apt-get, /usr/bin/apt, /bin/systemctl, /bin/kill, /usr/bin/kill
-```
-
-Set permissions:
-
-```bash
-sudo chmod 440 /etc/sudoers.d/voice-assistant
-sudo -l -U yourusername
-```
-
-✅ Test with a safe command (e.g., installing `sl`).
 
 ---
 
-## 🧪 What to Test Now
+## 🔐 Sudoers Setup (Same as V1)
 
-* Disk & memory checks
-* Top N processes
-* Package policy check
-* Install `sl` (safe, small package)
-* Service status (e.g., `ssh.service`)
-* Dummy PID kill test
+If you haven’t already done this in V1:
+Grant Leo **specific sudo rights** for `apt`, `systemctl`, and `kill`. (See [V1 README section](./README_V1.md))
 
 ---
 
-## ⚠️ Problems / Things to Improve
+## 🧪 Things to Test in V2
 
-* [ ] Speech recognition accuracy
-* [ ] Text-to-speech quality
-* [ ] Add a dashboard (UI for monitoring commands + logs)
+* Environment checks (`./check_env.sh`)
+* GUI commands (open website, search, mail)
+* Fallback: try installing a fake package → Leo should open browser with install guide
+* Voice confirmations (yes/no)
 
 ---
 
-## 🛠️ Next Steps
+## ⚠️ Known Issues / To Improve
 
-* Provide **wrapper scripts** for safer sudoers configuration
-* Add stricter argument validation
-* Expand Leo’s supported commands
+* GUI agent only works on **X11**
+* Limited window handling (sometimes focus fails if multiple apps open)
+* Voice recognition still inconsistent in noisy environments
 
 ---
 
@@ -181,3 +163,7 @@ sudo -l -U yourusername
 
 * **Gopu Girish, Shamir Ashraf, Yadhu Krishnan PU**
 * GitHub: [shamiroxs/AIP](https://github.com/shamiroxs/AIP)
+
+---
+
+👉 **Teammates:** Please **make sure you are on X11 before testing GUI features**. Run `echo $XDG_SESSION_TYPE`. If it says `wayland`, log out and choose `X11 session` from your login screen.
