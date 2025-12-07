@@ -1,170 +1,168 @@
-# 🎙️ Leo (Version 2)
+# 🎙️ Leo (Version 3)
 
-**Leo** is our Linux-based **voice + text assistant**, developed as part of our BTech final year project.
-
-This is **Version 2**, building on top of V1 with major **environment setup tools** and a new **GUI Agent** for desktop automation.
+**Leo** is our Linux-based **voice + text desktop assistant**, evolved from Version 2 with **LLM-based intelligence**, stronger **safety**, and **command verification layers** powered entirely **offline** (local models only — no cloud).
 
 ---
 
+## 🚀 What’s New in Version 3
 
-## 🚀 What’s New in Version 2
+### 🧠 Local LLM Intelligence (Offline)
 
-* ✅ **Setup Scripts**
+* Natural conversation fallback for unknown commands
+* Context-aware responses using recent memory
+* Can **suggest structured commands**, but **never executes them directly**
+* Configurable to support **Ollama** or local model servers
 
-  * `setup_env.sh` → Installs all Debian packages, sets up Python virtual environment, and installs Python dependencies.
-  * `check_env.sh` → Verifies system environment:
+### 🔐 Safety-First Execution Flow
 
-    * Confirms X11 session is running
-    * Checks microphone availability
-    * Checks required tools (`xdotool`, `wmctrl`, `sox`, etc.)
+* Zero blind execution from AI
+* **Multiple safety checkpoints**:
 
-* ✅ **GUI Agent (X11 Automation)**
+  * Regex intent → direct deterministic actions ✔️
+  * LLM proposals → **SafetyAgent → User Confirmation → Execution**
+  * Command validation using Markov-based anomaly detection
+* Full logging of LLM outputs & safety decisions
 
-  * Launch apps (`xdg-open`, `subprocess.Popen`)
-  * Focus and control windows (`xdotool`, `wmctrl`)
-  * Type text into active apps
-  * Simulate key presses and mouse actions
-  * Open URLs in the default browser
-  * Take screenshots for debugging/feedback
+### 🧩 Modular NL Routing Architecture
 
-* ✅ **New Intents**
+A new **NL Router** intelligently decides if the LLM should:
 
-  * `open_url` → open a webpage
-  * `compose_mail` → quick email drafting
-  * `search_query` → web search for queries
+* Provide a conversational answer
+* Suggest a grounded system action
+* Ask clarifying questions if uncertain
 
-* ✅ **Improved Package Install**
+### 📜 Configurable & Auditable
 
-  * If `apt install` fails (package not found):
+* LLM configuration now externalized (model path, ports, parameters)
+* Dedicated LLM logs for transparency: `~/.leo/llm.log`
 
-    * Leo searches the web for install guides.
-    * Automatically opens the first result in your browser.
-    * Falls back to Google search if no guide found.
+---
+
+## 🏗️ Updated Internal Architecture
+
+| Module/Feature           | Status   | Description                                       |
+| ------------------------ | -------- | ------------------------------------------------- |
+| Regex Intent Recognition | Improved | Unknown → fallback to LLM router                  |
+| Coordinator              | Improved | Routes control flow based on intent type          |
+| Action Execution         | Hardened | Requires confirmation for LLM-sourced actions     |
+| Context Memory           | New      | Short-term recall (previous queries/system state) |
+| LLM Agent                | New      | Talks to local model (Ollama) with safe prompts   |
+| NL Router                | New      | Decides reply vs command suggestion               |
+| LLM Safety Layer         | New      | Validates suggestions + blocks unsafe tokens      |
+| Markov Verifier          | New      | Detects hallucinated command sequences            |
+| Logging System           | Expanded | Adds LLM + safety logs for auditing               |
+| Config System            | New      | `llm_config.yaml` for model + thresholds          |
+
+All new code remains **local-only**.
+**No internet calls** by the assistant or the LLM.
+
+---
+
+## 📂 New Files in V3
+
+| File                                               | Purpose                              |
+| -------------------------------------------------- | ------------------------------------ |
+| `assistant/agents/llm_agent.py`                    | Local LLM interface                  |
+| `assistant/agents/nl_router.py`                    | Natural language routing logic       |
+| `assistant/data/prompts.py`                        | System prompts for grounded behavior |
+| `assistant/agents/context_memory.py`               | Limited context storage              |
+| `assistant/security/llm_safety.py`                 | Command risk analysis                |
+| `assistant/utils/response_formatter.py`            | TTS/UI-friendly response formatting  |
+| `assistant/agents/verification_markov.py`          | Markov safety model                  |
+| `assistant/tests/test_llm_integration.py`          | Automated verification               |
+| `assistant/agents/langchain_wrapper.py` (optional) | Tool-augmented reasoning             |
+| `assistant/config/llm_config.yaml`                 | Local model settings                 |
+| `systemd/leo-llm.service` (optional)               | Optional local LLM auto-start        |
 
 ---
 
 ## 📦 Requirements
 
-* Debian **11/12** (X11 session required – **NOT Wayland**)
-* Python **3.9+**
-* Microphone + working audio (ALSA/PulseAudio)
-* Sudo privileges for installing system packages
+Everything from V2 **plus:**
+
+* Local LLM runtime (example: **Ollama**)
+* At least **6GB RAM** recommended for smooth model use
 
 ---
 
-## 🔧 Installation (Beginner-Friendly)
+## 🧰 Usage (V3 Flow)
 
-### 1. Clone the repo
+### Deterministic Commands (Regex)
 
 ```bash
-git clone https://github.com/shamiroxs/AIP.git
-cd AIP
+python -m assistant.main --text "leo open firefox"
 ```
 
-### 2. Run the setup script
+Direct execution → Safety → Done.
+
+### Natural Conversation (LLM Fallback)
 
 ```bash
-chmod +x setup_env.sh
-./setup_env.sh
+python -m assistant.main --text "what is python venv?"
 ```
 
-This will:
+LLM responds conversationally.
+No execution happens.
 
-* Install required Debian packages (`ffmpeg`, `sox`, `portaudio19-dev`, `xdotool`, `wmctrl`, etc.)
-* Create a Python virtual environment
-* Install all Python dependencies from `requirements.txt`
-
-### 3. Check your environment
+### LLM Suggested Commands
 
 ```bash
-chmod +x check_env.sh
-./check_env.sh
+python -m assistant.main --text "install curl"
 ```
 
-This script will tell you if:
+Flow:
 
-* You are running in **X11** (✅ required for GUI automation)
-* Your microphone is detected
-* Required tools are installed
+1. LLM proposes: `sudo apt install curl`
+2. Safety check → logs
+3. Leo asks confirmation:
 
-⚠️ **If you see “Wayland” instead of “X11” → Log out and select “X11 session” before running Leo.**
+   > Should I install curl? (yes/no)
+4. Only then executes
 
 ---
 
-## ▶️ Usage
+## 🛡️ Safety Guarantees
 
-### Text Mode (safe for testing)
+| Risk                                  | Mitigation                               |
+| ------------------------------------- | ---------------------------------------- |
+| LLM tries to run destructive commands | Hard block list + Markov anomaly scoring |
+| LLM tries to execute directly         | No executor access — only proposals      |
+| Hidden shell injection                | Sanitization before user confirmation    |
+| Untraceable actions                   | Full audit logging                       |
 
-```bash
-source .venv/bin/activate
-python -m assistant.main --text "leo mail to user@mail.com hello sam"
-python -m assistant.main --text "leo search python file handling"
-```
-
-### Voice Mode (mic)
-
-```bash
-./run.sh
-```
-
-Then say:
-
-```
-leo open firefox
-leo mail to user@mail.com hello sam
-```
-
-Leo will:
-
-* Confirm via voice/console
-* Run system commands OR control desktop apps
+👑 **User is always the final checkpoint.**
 
 ---
 
-## 🖥️ GUI Agent Examples
+## 🧪 Testing Checklist
 
-```bash
-# Open YouTube
-python -m assistant.main --text "leo open youtube.com"
-
-# Compose an email draft
-python -m assistant.main --text "leo mail to test@mail.com hey, checking Leo V2!"
-
-# Search Google
-python -m assistant.main --text "leo search install python on debian"
-```
+| Test                  | How                                            |
+| --------------------- | ---------------------------------------------- |
+| Regex commands        | Run GUI actions like “open browser”            |
+| Fallback conversation | Ask general questions                          |
+| Safety intervention   | Try malicious text like: “delete system files” |
+| Confirmation required | Installation requests                          |
+| Logging               | Check `~/.leo/llm.log`                         |
 
 ---
 
-## 🔐 Sudoers Setup (Same as V1)
+## ⚠️ Known Limitations
 
-If you haven’t already done this in V1:
-Grant Leo **specific sudo rights** for `apt`, `systemctl`, and `kill`. (See [V1 README section](./README_V1.md))
-
----
-
-## 🧪 Things to Test in V2
-
-* Environment checks (`./check_env.sh`)
-* GUI commands (open website, search, mail)
-* Fallback: try installing a fake package → Leo should open browser with install guide
-* Voice confirmations (yes/no)
+* Still requires **X11** for GUI control
+* Local models vary in accuracy for command suggestion
+* Context memory resets on restart (configurable)
 
 ---
 
-## ⚠️ Known Issues / To Improve
-
-* GUI agent only works on **X11**
-* Limited window handling (sometimes focus fails if multiple apps open)
-* Voice recognition still inconsistent in noisy environments
-
----
-
-## 👨‍💻 Authors
+## 👨‍💻 Contributors
 
 * **Gopu Girish, Shamir Ashraf, Yadhu Krishnan PU**
-* GitHub: [shamiroxs/AIP](https://github.com/shamiroxs/AIP)
+* GitHub: [`shamiroxs/AIP`](https://github.com/shamiroxs/AIP)
 
 ---
 
-👉 **Teammates:** Please **make sure you are on X11 before testing GUI features**. Run `echo $XDG_SESSION_TYPE`. If it says `wayland`, log out and choose `X11 session` from your login screen.
+## 👍 Team Notes for Demo
+
+✔️ Use **text mode** for testing LLM flows
+✔️ Confirm **Ollama/local LLM server** is running
+✔️ Always check GUI automation in **X11 session**
