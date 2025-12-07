@@ -1,0 +1,12 @@
+# assistant/config/llm_config.yaml
+model: "leo-finetuned"
+provider: "ollama"
+host: "http://127.0.0.1:11434"
+timeout: 10
+suggestion_confidence_threshold: 0.7
+memory_size: 8
+allowed_tools:
+  - "list_top"
+  - "check_disk"
+  - "check_memory"
+  - "package_policy"

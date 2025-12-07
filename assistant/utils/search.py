@@ -17,12 +17,11 @@ def first_search_result(query: str) -> str | None:
     if not href:
         return None
 
-    # DuckDuckGo result links often look like: /l/?uddg=<encoded_target>
     parsed = urlparse(href)
     qs = parse_qs(parsed.query)
     if "uddg" in qs:
-        return unquote(qs["uddg"][0])  # real target URL
-    return href  # if it's already a direct link
+        return unquote(qs["uddg"][0])
+    return href  
 
 def has_internet(host="8.8.8.8", port=53, timeout=3):
     try:
@@ -36,7 +35,6 @@ def check_network(pkg):
     try:
         if not has_internet():
             return f"No internet connection. Cannot search for {pkg}. Try checking your package manager."
-        # Try a real HTTPS request to detect SSL issues
         import requests
         requests.get("https://pypi.org", timeout=3)
         return True

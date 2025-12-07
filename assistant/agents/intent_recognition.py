@@ -24,12 +24,9 @@ class Intent:
 class IntentRecognitionAgent:
     def parse(self, text: str) -> Optional[Intent]:
         t = text.lower().strip()
-        # Remove common punctuation (except @:/ needed for emails/urls)
         t = re.sub(r"[^\w\s\-\._@/:]", " ", t)
 
-        # --------------------------
         # Package management intents
-        # --------------------------
         m = re.match(r"(?:install|setup|add)\s+([a-z0-9\-\._+:]+)(?:\s+version\s+([^\s]+))?", t)
         if m:
             pkg = m.group(1)
@@ -68,20 +65,14 @@ class IntentRecognitionAgent:
             n = int(m.group(1)) if m.group(1) else 10
             return Intent(name="top_processes", count=n)
 
-        # --------------------------
         # GUI / App intents
-        # --------------------------
-
-        # --- Check for URL intent ---
         m = re.match(r"(?:open|go to|visit)\s+([^\s]+)", t, re.IGNORECASE)
         if m:
             url = m.group(1)
 
-            # Case 1: Explicit http/https URL
             if url.startswith("http://") or url.startswith("https://"):
                 return Intent(name="open_url", url=url)
 
-            # Case 2: Domain with a dot (smarter detection)
             elif re.match(r".+\.[a-zA-Z]{2,}(/.*)?$", url):
                 return Intent(name="open_url", url="https://" + url)
 
@@ -89,9 +80,7 @@ class IntentRecognitionAgent:
         if m:
             return Intent(name="open_app", extra=m.group(1))
 
-        # --------------------------
         # Email intent
-        # --------------------------
         m = re.match(r"(?:send|compose|mail)\s+to\s+([^\s]+@[^\s]+)\s+(.+)", t)
         if m:
             recipient = m.group(1)
@@ -103,17 +92,13 @@ class IntentRecognitionAgent:
                 subject="",  # subject can be added later if user specifies
             )
 
-        # --------------------------
         # Search intents
-        # --------------------------
         m = re.match(r"(?:search|find|look for)\s+(.+)", t)
         if m:
             query = m.group(1)
             return Intent(name="search_query", query=query)
 
-        # --------------------------
         # Misc
-        # --------------------------
         m = re.match(r"(?:say|speak|echo)\s+(.+)", t)
         if m:
             return Intent(name="speak_text", text=m.group(1))

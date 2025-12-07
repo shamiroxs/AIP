@@ -2,6 +2,7 @@
 import shlex
 import subprocess, shutil
 import time
+import threading
 from assistant.agents.safety import SafetyAgent
 from assistant.agents.package_manager import PackageManagerAgent
 from assistant.agents.process_monitor import ProcessMonitorAgent
@@ -26,13 +27,13 @@ class ActionExecutionAgent:
 
     def run(self, intent: Intent) -> str:
 
-        # --- System Info ---
+        # System Info
         if intent.name == "check_disk":
             return self.mon.disk_usage()
         if intent.name == "check_memory":
             return self.mon.memory()
 
-        # --- Process Monitor ---
+        # Process Monitor
         if intent.name == "top_processes":
             return self.mon.top_processes(n=int(intent.count or 10))
 
@@ -53,7 +54,7 @@ class ActionExecutionAgent:
             outs = [self.mon.kill_pid(pid) for pid in pids]
             return "\n".join(outs)
 
-        # --- Package Manager ---
+        # Package Manager
         if intent.name == "check_installed" and intent.package:
             return f"{intent.package} installed: {self.pkg.is_installed(intent.package)}"
 
@@ -73,7 +74,7 @@ class ActionExecutionAgent:
             if net_result is not True:
                 return net_result
 
-            # --- Try APT ---
+            # Try APT
             if self.pkg.apt_exists(pkg):
                 if self.safety.needs_confirmation(["apt-get", "install", pkg]):
                     if not self.ask_confirm(f"Install {pkg} via apt?"):
@@ -102,19 +103,19 @@ class ActionExecutionAgent:
                                     text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
                     return r.stdout or f"Installed {pkg} via flatpak."
             '''
-            # --- Fallback: Open Browser ---
-            search_query = f"installing {pkg} on linux"
-            link = first_search_result(search_query)
+            # Fallback: Open Browser 
+            search_qu = f"installing {pkg} on linux"
+            link = first_search_result(search_qu)
 
             if link:
                 gui.open_url(link)
                 return f"Package {pkg} not found in apt. Opened install guide in browser: {link}"
             else:
-                url = f"https://www.google.com/search?q={search_query}"
+                url = f"https://www.google.com/search?q={search_qu}"
                 gui.open_url(url)
                 return f"Package {pkg} not found. Opened Google search instead: {url}"
 
-        # --- Service Controls ---
+        # Service Controls
         if intent.name.startswith("svc_") and intent.service:
             verb = intent.name.split("_", 1)[1]
             argv = ["systemctl", verb, intent.service]
@@ -127,7 +128,7 @@ class ActionExecutionAgent:
                                text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             return r.stdout or "(no output)"
 
-        # --- Application Launch ---
+        # Application Launch 
         if intent.name == "open_app" and intent.extra:
             if shutil.which(intent.extra) is None:
                 return f"Application '{intent.extra}' not found."
@@ -156,19 +157,28 @@ class ActionExecutionAgent:
 
 
         if intent.name == "search_query" and intent.query:
-            # --- General Search Intent ---
-            search_query = intent.query
-            link = first_search_result(search_query)
+            # General Search Intent 
+            search_q = intent.query
+            result_link = {"value": None}
 
-            if link:
-                gui.open_url(link)
-                return f"Searched for '{search_query}' and opened top result: {link}"
+            #def _fetch():
+            result_link["value"] = first_search_result(search_q)
+            '''
+            t = threading.Thread(target=_fetch)
+            t.start()
+            t.join(timeout=1)  # wait up to 4 seconds
+            '''
+            # Use the result
+            linker = result_link["value"]
+            if linker:
+                gui.open_url(linker)
+                return f"Searched for '{search_q}' and opened the result: {linker}"
             else:
-                url = f"https://www.google.com/search?q={search_query}"
+                url = f"https://www.google.com/search?q={search_q}"
                 gui.open_url(url)
-                return f"Searched for '{search_query}', but no direct result found. Opened Google instead: {url}"
+                return f"Searched for '{search_q}', but no direct result found. Opened Google instead: {url}"
 
-        # --- Voice Output (Echo/Speak) ---
+        # Voice Output (Echo/Speak)
         if intent.name == "speak_text" and intent.text:
             return intent.text
 

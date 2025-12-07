@@ -10,4 +10,24 @@ class Settings(BaseSettings):
     # safety: require explicit "yes" confirmation for privileged actions
     REQUIRE_CONFIRMATION_FOR_ROOT: bool = True
 
+    # LLM related settings
+    LLM_ENABLED: bool = False               # Set True to enable contacting a local LLM server
+    LLM_PROVIDER: str = "ollama"            # "ollama" or "mock"
+    LLM_HOST: str = "http://127.0.0.1:11434" # endpoint used if LLM_ENABLED is True
+    LLM_MODEL_NAME: str = "leo-finetuned"   # model identifier (provider-specific)
+    LLM_TIMEOUT_SECONDS: int = 10
+
+    CONVERSATION_MEMORY_SIZE: int = 8
+    SUGGESTION_CONFIDENCE_THRESHOLD: float = 0.70
+
+
+    HOME_DIR: str = str(Path.home())
+    LEO_HOME: str = str(Path.home() / ".leo")
+    LLM_LOG_FILE: str = str(Path.home() / ".leo" / "llm.log")
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+
+
 settings = Settings()

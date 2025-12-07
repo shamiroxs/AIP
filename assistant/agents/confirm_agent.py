@@ -10,11 +10,6 @@ from typing import Optional
 log = get_logger(__name__)
 
 class ConfirmAgent:
-    """
-    Short voice-based confirmation using Vosk.
-    listen_confirm(timeout) -> True/False/None (None = no clear answer)
-    """
-
     def __init__(self, model_dir: str | None = None, samplerate: int | None = None):
         model_dir = model_dir or settings.VOSK_MODEL_DIR
         samplerate = samplerate or settings.SAMPLE_RATE
@@ -30,9 +25,6 @@ class ConfirmAgent:
         self._q.put(bytes(indata))
 
     def listen_confirm(self, timeout: float = 5.0) -> Optional[bool]:
-        """
-        Listen for `yes`/`no` for up to timeout seconds. Returns True/False or None.
-        """
         log.info("[Confirm] Listening for %s seconds for yes/no...", timeout)
         recorded = bytearray()
         try:
@@ -66,11 +58,6 @@ class ConfirmAgent:
         return None
 
     def ask_confirm(self, prompt_text: str, timeout: float = 6.0) -> bool:
-        """
-        Ask by voice then fallback to console. Returns True if confirmed.
-        """
-        # speak the prompt via ResponseAgent externally (Coordinator will call).
-        # Here we only capture answer.
         val = self.listen_confirm(timeout=timeout)
         if val is not None:
             return val
