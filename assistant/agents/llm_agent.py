@@ -54,11 +54,22 @@ class LLMAgent:
             return self._mock.answer(prompt)
         try:
             # Attempt a generic HTTP POST to configured LLM host.
-            payload = {"model": self.model, "prompt": prompt}
-            r = requests.post(f"{self.host}/api/generate", json=payload, timeout=self.timeout)
+            payload = {
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": PROMPT_SYSTEM},
+                    {"role": "user", "content": prompt}
+                ],
+                "stream": False
+            }
+
+            r = requests.post(f"{self.host}/v1/chat/completions", json=payload, timeout=self.timeout)
+
+
+            print("\n--- RAW LLM RESPONSE (answer_query) ---\n", r.text, "\n-----------------------\n")
             r.raise_for_status()
             body = r.json()
-            txt = body.get("text") or body.get("output") or json.dumps(body)
+            txt = body["choices"][0]["message"]["content"]
             return LLMResponse(text=txt, meta={"model": self.model, "raw": body})
         except Exception as e:
             log.warning("[LLM] remote call failed: %s", e)
@@ -73,11 +84,21 @@ class LLMAgent:
         if not self.enabled:
             return self._mock.suggest(prompt)
         try:
-            payload = {"model": self.model, "prompt": prompt}
-            r = requests.post(f"{self.host}/api/generate", json=payload, timeout=self.timeout)
+            payload = {
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": PROMPT_SYSTEM},
+                    {"role": "user", "content": prompt}
+                ],
+                "stream": False
+            }
+
+            r = requests.post(f"{self.host}/v1/chat/completions", json=payload, timeout=self.timeout)
+
             r.raise_for_status()
             body = r.json()
-            txt = body.get("text") or body.get("output") or json.dumps(body)
+            txt = body["choices"][0]["message"]["content"]
+
             return LLMResponse(text=txt, meta={"model": self.model, "raw": body})
         except Exception as e:
             log.warning("[LLM] remote suggest failed: %s", e)

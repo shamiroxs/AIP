@@ -81,7 +81,7 @@ class Coordinator:
                 log.debug("[Coordinator] GUI reply display failed (non-fatal)")
 
             # Speak short reply
-            self.resp.say(reply_speech)
+            self.resp.say(self._clean_for_tts(reply_speech))
 
         except Exception as e:
             log.info("[Coordinator] Failed presenting reply: %s", e)
@@ -135,6 +135,13 @@ class Coordinator:
             parts.append(f"Notes: {'; '.join(map(str,reasons))}")
         summary = ". ".join(parts)
         return summary
+
+    def _clean_for_tts(self, s: str) -> str:
+        s = s.replace("{", "").replace("}", "")
+        s = s.replace("[", "").replace("]", "")
+        s = s.replace("```", "")
+        s = s.replace("\n", " ")
+        return s.strip()[:250]
 
 
     def _confirm_voice(self, question: str) -> bool:

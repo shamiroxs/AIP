@@ -12,6 +12,9 @@ class ResponseAgent:
             self.tts = pyttsx3.init()
 
     def say(self, text: str):
+        if not isinstance(text, str):
+            text = str(text)
+            
         lines = text.strip().splitlines()
         for line in lines:
             log.info("[Say] %s", line)
