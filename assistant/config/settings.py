@@ -11,12 +11,14 @@ class Settings(BaseSettings):
     REQUIRE_CONFIRMATION_FOR_ROOT: bool = True
 
     # LLM related settings
+    LOCAL_LLM_PATH: str = "assistant/models/leo-finetuned"
+    
     LLM_ENABLED: bool = True               # Set True to enable contacting a local LLM server
     LLM_PROVIDER: str = "ollama"            # "ollama" or "mock"
-    LLM_HOST: str = "http://127.0.0.1:11434" # endpoint used if LLM_ENABLED is True
-    LLM_MODEL_NAME: str = "llama3.2:3B-instruct-q4_K_M"   # model identifier (provider-specific)
+    OLLAMA_URL: str = "http://127.0.0.1:11434/api/generate" # endpoint used if LLM_ENABLED is True
+    LLM_MODEL: str = "llama3.2:3B-instruct-q4_K_M"   # model identifier (provider-specific)
     LLM_TIMEOUT_SECONDS: int = 120
-
+    
     CONVERSATION_MEMORY_SIZE: int = 8
     SUGGESTION_CONFIDENCE_THRESHOLD: float = 0.70
 

@@ -11,7 +11,7 @@ DANGEROUS_PATTERNS = [
     r"curl\s+.*\|.*sh", r"wget\s+.*\|.*sh", r"bash\s+-c", r"sh\s+-c"
 ]
 
-ALLOWED_ACTIONS = {"install_package", "svc_action", "open_url", "list_files", "check_disk"}
+ALLOWED_ACTIONS = {"install_package", "svc_action", "open_url", "list_files", "check_disk", "mkdir"}
 
 class LLMSafety:
     def __init__(self):

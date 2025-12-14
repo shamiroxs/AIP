@@ -8,7 +8,7 @@ import re
 
 ALLOWED_TOKENS = set([
     "apt-get", "install", "apt", "dpkg", "systemctl", "start", "stop", "restart",
-    "service", "firefox", "curl", "wget", "ls", "df", "free", "ps", "kill",
+    "service", "firefox", "curl", "wget", "ls", "df", "free", "ps", "kill", "mkdir",
     ".", "/", "-", "_", ":", "@"
 ])
 

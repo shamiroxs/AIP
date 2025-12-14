@@ -21,6 +21,7 @@ def get_logger(name: str) -> logging.Logger:
         return logger
 
     logger.setLevel(logging.INFO)
+    logger.propagate = False
 
     # Console handler (rich)
     ch = RichHandler(rich_tracebacks=True)

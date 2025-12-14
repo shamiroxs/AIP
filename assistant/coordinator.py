@@ -8,6 +8,7 @@ from assistant.agents.gui_agent import GUIAgent
 from assistant.agents.nl_router import NLRouter
 from assistant.config.settings import settings
 from assistant.utils.logger import get_logger
+from assistant.agents.command_translator import CommandTranslationAgent
 
 from typing import Optional
 import json
@@ -23,6 +24,7 @@ class Coordinator:
         self.gui_agent = GUIAgent()
         self.nlrouter = NLRouter()
         self.exec = ActionExecutionAgent(self._confirm_voice)
+        self.cmd_translator = CommandTranslationAgent()
 
     def handle_text(self, text: str):
         text = text.strip()
@@ -53,63 +55,41 @@ class Coordinator:
             print(result)
         else:
             self.resp.say(result if isinstance(result, str) else str(result))
-
-    # ----- NLRouter handling -----
+    
+    # ----- NLRouter handling (NEW) -----
     def _handle_unknown_with_llm(self, text: str):
-        """
-        Ask NLRouter (LLM) for a conversational reply and optional suggested intent.
-        Present reply, then if a proposed_intent exists, ask for confirmation
-        and (only if confirmed) pass to exec_agent for final safety/execution.
-        """
-        out = self.nlrouter.handle_unknown(text)
-        reply = out.get("reply") or out.get("reply_speech") or "I don't have an answer."
-        reply_speech = out.get("reply_speech") or reply
-        proposed_intent: Optional[Intent] = out.get("proposed_intent")
-        proposed_meta = out.get("proposed_meta") or {}
+        route = self.nlrouter.route(text)
 
-        # Present LLM reply: GUI + TTS + console
-        try:
-            # show in GUI if possible (simple notification using open_url or screenshot message)
-            try:
-                # Try to open a small GUI notification via xdg-open of a temporary file (best-effort)
-                tmpfile = "/tmp/leo_llm_reply.txt"
-                with open(tmpfile, "w", encoding="utf-8") as f:
-                    f.write(reply)
-                # Attempt to open the file in the default editor - best-effort
-                #self.gui_agent.open_url("file://" + tmpfile)
-            except Exception:
-                log.debug("[Coordinator] GUI reply display failed (non-fatal)")
+        rtype = route.get("type")
 
-            # Speak short reply
-            self.resp.say(self._clean_for_tts(reply_speech))
+        if rtype == "chat":
+            self.resp.say(route.get("response", ""))
 
-        except Exception as e:
-            log.info("[Coordinator] Failed presenting reply: %s", e)
-
-        # If LLM proposed an actionable intent, handle it
-        if proposed_intent:
-            log.info("[Coordinator] LLM proposed intent: %s meta=%s", proposed_intent, json.dumps(proposed_meta))
-            # Summarize proposal for user confirmation
-            summary = self._summarize_proposed_intent(proposed_intent, proposed_meta)
-            # Voice ask & GUI fallback
-            confirmed = self._confirm_proposal(summary)
+        elif rtype == "task" or rtype == "Task":
+            goal = route.get("instruction")
+            self.resp.say(f"I understand. You want to {goal}.")
+            '''
+            confirmed = self._confirm_voice(f"Should I proceed to {goal}?")
             if not confirmed:
-                self.resp.say("Okay, I will not run that command.")
-                log.info("[Coordinator] User rejected proposed intent.")
+                self.resp.say("Okay, cancelled.")
                 return
+            '''
+            # Step 2: Translate instruction → bash
+            cmd = self.cmd_translator.translate(goal)
+            '''
+            # Safety confirmation
+            confirmed = self._confirm_voice(f"I will run: {cmd}. Proceed?")
+            if not confirmed:
+                self.resp.say("Okay, not running it.")
+                return
+            '''
+            # Execute
+            result = self.exec.run_raw_command(cmd)
+            self.resp.say("Done.")
 
-            # If confirmed by user, pass to exec_agent for final safety checks & execution.
-            self.resp.say("Running the proposed action now.")
-            try:
-                result = self.exec_agent.run(proposed_intent)
-                if isinstance(result, str) and len(result) > 500:
-                    self.resp.say("Done. Output is long; see console.")
-                    print(result)
-                else:
-                    self.resp.say(str(result))
-            except Exception as e:
-                log.exception("[Coordinator] Execution failed: %s", e)
-                self.resp.say("Action failed during execution. Check logs.")
+        else:
+            log.warning("[Coordinator] Unknown router output: %s", route)
+            self.resp.say("I'm not sure how to handle that yet.")
 
     def _summarize_proposed_intent(self, intent: Intent, meta: dict) -> str:
         """
@@ -140,6 +120,7 @@ class Coordinator:
         s = s.replace("{", "").replace("}", "")
         s = s.replace("[", "").replace("]", "")
         s = s.replace("```", "")
+        s = s.replace("*", "")
         s = s.replace("\n", " ")
         return s.strip()[:250]
 

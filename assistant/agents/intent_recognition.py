@@ -103,4 +103,4 @@ class IntentRecognitionAgent:
         if m:
             return Intent(name="speak_text", text=m.group(1))
 
-        return None
+        return Intent(name="unknown")

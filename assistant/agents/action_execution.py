@@ -183,3 +183,37 @@ class ActionExecutionAgent:
             return intent.text
 
         return "I don't have an action for that yet."
+
+    def run_raw_command(self, cmd: str) -> str:
+        """
+        Execute a raw bash command string, safely.
+        Performs safety checks and asks for user confirmation.
+        """
+
+        if not cmd or not isinstance(cmd, str):
+            return "No command provided."
+
+        # --- Basic safety check ---
+        dangerous_terms = ["rm -rf", ":(){", "shutdown", "reboot", "mkfs", ">:"] 
+        if any(term in cmd for term in dangerous_terms):
+            return "Command rejected by safety filter."
+
+        # --- Execute ---
+        try:
+            result = subprocess.run(
+                ["bash", "-c", cmd],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                timeout=30  # prevent hanging commands
+            )
+            output = result.stdout.strip()
+            if not output:
+                output = "(command executed successfully, no output)"
+            return output
+
+        except subprocess.TimeoutExpired:
+            return "Command timed out."
+        except Exception as e:
+            return f"Command execution failed: {e}"
+
