@@ -2,6 +2,7 @@
 
 import json
 import requests
+import re
 from assistant.agents.local_llm import LocalLLM
 from assistant.config.settings import settings
 from assistant.utils.logger import get_logger
@@ -23,7 +24,7 @@ class NLRouter:
 
     This agent NEVER executes commands.
     """
-
+    '''
     SYSTEM_PROMPT = """
 You are Leo, a local Linux AI assistant.
 
@@ -49,6 +50,29 @@ Output MUST be valid JSON with one of the following shapes:
 
 Be concise. Do not hallucinate system actions.
 """
+    '''
+    #new 1.5b prompt
+    SYSTEM_PROMPT = """
+You are a classifier.
+
+Decide the user's intent.
+
+Use "task" ONLY if the request requires executing one or more shell commands.
+Use "chat" for questions, explanations, comparisons, or conversation.
+
+Questions are ALWAYS chat.
+If the intent is "task", output ALL required actions in the order they must be executed.
+
+Output valid JSON only, No other explanations before or after the JSON.
+
+1) Task:
+{"type":"task","commands":["<shell command 1", "<shell command 2">, "<shell command N">]}
+
+2) Chat:
+{"type":"chat","response":"<answer>"}
+"""
+
+
     def __init__(self):
         LocalLLM.load(settings.LOCAL_LLM_PATH)
 
@@ -78,8 +102,17 @@ Be concise. Do not hallucinate system actions.
         raw = r.json().get("response", "").strip()
         log.debug("[NLRouter] Raw LLM output: %s", raw)
 
+        def strip_code_fences(text: str) -> str:
+            # Remove ```json ... ``` or ``` ... ```
+            text = text.strip()
+            text = re.sub(r"^```(?:json)?\s*", "", text)
+            text = re.sub(r"\s*```$", "", text)
+            return text.strip()
+
+        clean = strip_code_fences(raw)
+
         try:
-            return json.loads(raw)
+            return json.loads(clean)
         except json.JSONDecodeError:
             log.warning("LLM returned non-JSON, falling back to chat")
             return {

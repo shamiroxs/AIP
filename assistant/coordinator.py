@@ -59,14 +59,34 @@ class Coordinator:
     # ----- NLRouter handling (NEW) -----
     def _handle_unknown_with_llm(self, text: str):
         route = self.nlrouter.route(text)
+        print(route)
 
         rtype = route.get("type")
 
-        if rtype == "chat":
+        if rtype == "chat" or rtype == "conversation":
             self.resp.say(route.get("response", ""))
 
         elif rtype == "task" or rtype == "Task":
+            goal = route.get("commands")
+            
+            if goal is None:
+                self.resp.say(f"I don't understand that.")
+                return
+            self.resp.say(f"I understand. You want to {goal}.")
+
+            for cmd in goal:
+                log.info("[Coordinator] command executing %s", cmd)
+                result = self.exec.run_raw_command(cmd)
+                if result:
+                    self.resp.say(result)
+            self.resp.say("Done.")
+            """
             goal = route.get("instruction")
+            if goal is None:
+                goal = route.get("command")
+                if goal is None:
+                    goal = route.get("result")
+                    return
             self.resp.say(f"I understand. You want to {goal}.")
             '''
             confirmed = self._confirm_voice(f"Should I proceed to {goal}?")
@@ -75,7 +95,12 @@ class Coordinator:
                 return
             '''
             # Step 2: Translate instruction → bash
-            cmd = self.cmd_translator.translate(goal)
+            for g in goal:
+                cmd = self.cmd_translator.translate(g)
+                log.info("[Coordinator] command executing %s", cmd)
+                result = self.exec.run_raw_command(cmd)
+                if result:
+                    self.resp.say(result)
             '''
             # Safety confirmation
             confirmed = self._confirm_voice(f"I will run: {cmd}. Proceed?")
@@ -84,8 +109,9 @@ class Coordinator:
                 return
             '''
             # Execute
-            result = self.exec.run_raw_command(cmd)
+            
             self.resp.say("Done.")
+        """
 
         else:
             log.warning("[Coordinator] Unknown router output: %s", route)
@@ -121,7 +147,7 @@ class Coordinator:
         s = s.replace("[", "").replace("]", "")
         s = s.replace("```", "")
         s = s.replace("*", "")
-        s = s.replace("\n", " ")
+        s = s.replace("\n", "")
         return s.strip()[:250]
 
 
