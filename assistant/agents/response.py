@@ -7,6 +7,14 @@ from assistant.utils.logger import get_logger
 
 log = get_logger(__name__)
 
+'''
+    Configuration:
+        sudo rm /usr/bin/piper
+        sudo ln -s "$(pwd)/piper/piper" /usr/bin/piper
+        ls -l /usr/bin/piper
+        piper --help
+
+'''
 PIPER_DIR = Path.home() / ".local/share/piper/voices"
 PIPER_MODEL = PIPER_DIR / "en_US-amy-medium.onnx"
 PIPER_CONFIG = PIPER_DIR / "en_US-amy-medium.onnx.json"

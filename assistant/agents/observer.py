@@ -16,10 +16,11 @@ class ObserverAgent:
         "not found",
         "permission denied",
         "unable",
+        "no such file",
     ]
 
-    def observe(self, action: dict, output: str) -> dict:
-        log.info("[Observer] Observing result of %s", action)
+    def observe(self, command: str, output: str) -> dict:
+        log.info("[Observer] Observing result of %s", command)
 
         lowered = output.lower()
 
@@ -28,10 +29,12 @@ class ObserverAgent:
                 return {
                     "status": "failure",
                     "reason": kw,
+                    "command": command,
                     "output": output,
                 }
 
         return {
             "status": "success",
+            "command": command,
             "output": output,
         }

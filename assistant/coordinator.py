@@ -9,6 +9,7 @@ from assistant.agents.nl_router import NLRouter
 from assistant.config.settings import settings
 from assistant.utils.logger import get_logger
 from assistant.agents.command_translator import CommandTranslationAgent
+from assistant.agents.observer import ObserverAgent
 
 from typing import Optional
 import json
@@ -25,6 +26,9 @@ class Coordinator:
         self.nlrouter = NLRouter()
         self.exec = ActionExecutionAgent(self._confirm_voice)
         self.cmd_translator = CommandTranslationAgent()
+        self.observer = ObserverAgent()
+        self._retried_commands = set()
+
 
     def handle_text(self, text: str):
         text = text.strip()
@@ -59,7 +63,6 @@ class Coordinator:
     # ----- NLRouter handling (NEW) -----
     def _handle_unknown_with_llm(self, text: str):
         route = self.nlrouter.route(text)
-        print(route)
 
         rtype = route.get("type")
 
@@ -73,12 +76,56 @@ class Coordinator:
                 self.resp.say(f"I don't understand that.")
                 return
             self.resp.say(f"I understand. You want to {goal}.")
-
+            confirmed = self._confirm_voice(f"Should I proceed to {goal}?")
+            if not confirmed:
+                self.resp.say("Okay, cancelled.")
+                return
             for cmd in goal:
-                log.info("[Coordinator] command executing %s", cmd)
-                result = self.exec.run_raw_command(cmd)
-                if result:
-                    self.resp.say(result)
+                log.info("[Coordinator] executing %s", cmd)
+                output = self.exec.run_raw_command(cmd) or ""
+
+                observation = self.observer.observe(cmd, output)
+
+                if observation["status"] == "failure":
+
+                    # If we've already retried this command once → stop
+                    if cmd in self._retried_commands:
+                        self.resp.say("That command failed again. Stopping to avoid harm.")
+                        return
+                    self.resp.say("Something went wrong. Let me try to fix it.")
+
+                    replanned = self._replan(cmd, observation["output"])
+                    if not replanned:
+                        self.resp.say("I couldn't safely recover. Stopping.")
+                        return
+
+                    for new_cmd in replanned:
+                        log.info("[Coordinator] recovery executing %s", new_cmd)
+                        out = self.exec.run_raw_command(new_cmd)
+                        if out:
+                            self.resp.say(out)
+
+                    # Mark this command as retried
+                    self._retried_commands.add(cmd)
+
+                    self.resp.say("Trying again now.")
+
+                    # 🔁 RETRY the original command
+                    retry_output = self.exec.run_raw_command(cmd) or ""
+                    retry_obs = self.observer.observe(cmd, retry_output)
+
+                    if retry_obs["status"] == "failure":
+                        self.resp.say("It still failed after recovery. Stopping.")
+                        return
+
+                    # Success after retry
+                    if retry_output:
+                        self.resp.say(retry_output)
+                        output = ""
+
+                if output:
+                    self.resp.say(output)
+
             self.resp.say("Done.")
             """
             goal = route.get("instruction")
@@ -166,3 +213,29 @@ class Coordinator:
             except Exception:
                 return False
         return val
+
+    def _replan(self, failed_cmd: str, error_output: str) -> Optional[list]:
+            prompt = f"""
+        The following shell command failed:
+
+        Command:
+        {failed_cmd}
+
+        Error output:
+        {error_output}
+        """
+
+            route = self.nlrouter.route(prompt)
+            print(route)
+            rtype = route.get("type")
+
+            if rtype == "chat" or rtype == "conversation":
+                log.warning("[Replan aborted] %s", route.get("response"))
+                self.resp.say(route.get("response", ""))
+                return None
+
+            if rtype == "task":
+                return route.get("commands")
+
+            return None
+
