@@ -7,6 +7,8 @@ from assistant.agents.local_llm import LocalLLM
 from assistant.config.settings import settings
 from assistant.utils.logger import get_logger
 
+from assistant.memory.conversation_memory import ConversationMemory
+
 log = get_logger(__name__)
 
 
@@ -75,13 +77,32 @@ Output valid JSON only, No other explanations before or after the JSON.
 
     def __init__(self):
         LocalLLM.load(settings.LOCAL_LLM_PATH)
+        self.conversation_memory = ConversationMemory()
 
     def route(self, user_text: str) -> dict:
         log.info("[NLRouter] Routing text: %s", user_text)
 
+        recent_context = self.conversation_memory.recent(limit=6)
+
+        context_block = ""
+        if recent_context:
+            context_block = "Previous conversation:\n"
+            for msg in recent_context:
+                role = msg["role"].capitalize()
+                context_block += f"{msg['role']}: {msg['content']}\n"
+
+            context_block += "\n"
+
+        prompt = (
+            f"{self.SYSTEM_PROMPT}\n"
+            
+            f"User: {user_text}\n"
+            f"Assistant:"
+        )#f"{context_block}"
+
         payload = {
             "model": settings.LLM_MODEL,
-            "prompt": f"{self.SYSTEM_PROMPT}\nUser: {user_text}\nAssistant:",
+            "prompt": prompt,
             "stream": False,
         }
 

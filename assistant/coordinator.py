@@ -10,6 +10,7 @@ from assistant.config.settings import settings
 from assistant.utils.logger import get_logger
 from assistant.agents.command_translator import CommandTranslationAgent
 from assistant.agents.observer import ObserverAgent
+from assistant.memory.task_memory import TaskMemory
 
 from typing import Optional
 import json
@@ -28,6 +29,8 @@ class Coordinator:
         self.cmd_translator = CommandTranslationAgent()
         self.observer = ObserverAgent()
         self._retried_commands = set()
+        self.task_memory = TaskMemory()
+
 
 
     def handle_text(self, text: str):
@@ -80,6 +83,8 @@ class Coordinator:
             if not confirmed:
                 self.resp.say("Okay, cancelled.")
                 return
+            self.task_memory.start_task(goal=str(goal))
+            
             for cmd in goal:
                 log.info("[Coordinator] executing %s", cmd)
                 output = self.exec.run_raw_command(cmd) or ""
@@ -116,15 +121,24 @@ class Coordinator:
 
                     if retry_obs["status"] == "failure":
                         self.resp.say("It still failed after recovery. Stopping.")
+                        self.task_memory.update(
+                            goal=str(goal),
+                            last_step=f"Failed: {cmd}"
+                        )
+
                         return
 
                     # Success after retry
                     if retry_output:
                         self.resp.say(retry_output)
                         output = ""
+                else:
+                    self.task_memory.update(str(goal), f"Executed: {cmd}")
 
                 if output:
                     self.resp.say(output)
+            
+            self.task_memory.complete(str(goal))
 
             self.resp.say("Done.")
             """
@@ -163,6 +177,17 @@ class Coordinator:
         else:
             log.warning("[Coordinator] Unknown router output: %s", route)
             self.resp.say("I'm not sure how to handle that yet.")
+    def resume_task(self, task: dict):
+        """
+        Resume an interrupted multi-step task.
+        """
+        log.info("[Coordinator] Resuming task: %s", task)
+        last_step = task.get("last_step")
+        if not last_step:
+            self.resp.say("I don't know where to resume from.")
+            return
+        self.resp.say("Resuming where I left off.")
+        self.nlrouter.resume_from(last_step)
 
     def _summarize_proposed_intent(self, intent: Intent, meta: dict) -> str:
         """

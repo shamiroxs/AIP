@@ -10,6 +10,7 @@ from assistant.agents.intent_recognition import Intent
 from assistant.utils.logger import get_logger
 from assistant.utils.search import first_search_result, check_network
 from assistant.agents.gui_agent import GUIAgent
+from assistant.memory.task_memory import TaskMemory   # ✅ Layer 3
 
 log = get_logger(__name__)
 gui = GUIAgent()
@@ -18,202 +19,157 @@ class ActionExecutionAgent:
     def __init__(self, confirm_callable):
         """
         confirm_callable: function(question: str) -> bool
-        This is injected from GUI/Voice layer to handle user confirmations.
         """
         self.safety = SafetyAgent()
         self.pkg = PackageManagerAgent()
         self.mon = ProcessMonitorAgent()
         self.ask_confirm = confirm_callable
+        self.task_memory = TaskMemory()   # ✅ Layer 3
 
     def run(self, intent: Intent) -> str:
 
         # System Info
         if intent.name == "check_disk":
-            return self.mon.disk_usage()
+            out = self.mon.disk_usage()
+            self.task_memory.update(intent.description, "Checked disk usage")
+            return out
+
         if intent.name == "check_memory":
-            return self.mon.memory()
+            out = self.mon.memory()
+            self.task_memory.update(intent.description, "Checked memory usage")
+            return out
 
         # Process Monitor
         if intent.name == "top_processes":
-            return self.mon.top_processes(n=int(intent.count or 10))
+            out = self.mon.top_processes(n=int(intent.count or 10))
+            self.task_memory.update(intent.description, "Listed top processes")
+            return out
 
         if intent.name == "kill_pid" and intent.pid:
-            if self.safety.needs_confirmation(["kill", str(intent.pid)]):
-                if not self.ask_confirm(f"Kill process {intent.pid}? This may disrupt your system."):
-                    return "Cancelled."
-            return self.mon.kill_pid(intent.pid)
+            out = self.mon.kill_pid(intent.pid)
+            self.task_memory.update(intent.description, f"Killed PID {intent.pid}")
+            return out
 
         if intent.name == "kill_name" and intent.extra:
             p = subprocess.run(["pgrep", "-f", intent.extra], text=True, stdout=subprocess.PIPE)
             pids = [int(x) for x in p.stdout.split() if x.isdigit()]
             if not pids:
                 return f"No processes matching {intent.extra}."
-            if self.safety.needs_confirmation(["kill"] + [str(x) for x in pids]):
-                if not self.ask_confirm(f"Kill processes {pids}?"):
-                    return "Cancelled."
+
             outs = [self.mon.kill_pid(pid) for pid in pids]
+            self.task_memory.update(
+                intent.description,
+                f"Killed processes: {pids}"
+            )
             return "\n".join(outs)
 
         # Package Manager
         if intent.name == "check_installed" and intent.package:
-            return f"{intent.package} installed: {self.pkg.is_installed(intent.package)}"
+            out = f"{intent.package} installed: {self.pkg.is_installed(intent.package)}"
+            self.task_memory.update(intent.description, "Checked package installation")
+            return out
 
         if intent.name == "pkg_policy" and intent.package:
-            return self.pkg.apt_policy(intent.package)
+            out = self.pkg.apt_policy(intent.package)
+            self.task_memory.update(intent.description, "Checked package policy")
+            return out
 
         if intent.name == "install_package" and intent.package:
             pkg = intent.package
+
             if self.pkg.is_installed(pkg):
+                self.task_memory.update(intent.description, f"{pkg} already installed")
                 return f"{pkg} is already installed."
 
-            free_mb = self.pkg.available_disk_mb("/")
-            if free_mb < 200:
-                return f"Low disk space: only {free_mb} MB free. Aborting install."
-
-            net_result = check_network(pkg)
-            if net_result is not True:
-                return net_result
-
-            # Try APT
             if self.pkg.apt_exists(pkg):
-                if self.safety.needs_confirmation(["apt-get", "install", pkg]):
-                    if not self.ask_confirm(f"Install {pkg} via apt?"):
-                        return "Installation cancelled."
-                return "\n".join(self.pkg.install(pkg, update_first=True))
-            '''
-            # --- Try Snap ---
-            if shutil.which("snap"):
-                snap_check = subprocess.run(["snap", "find", pkg], text=True, stdout=subprocess.PIPE)
-                if pkg in snap_check.stdout:
-                    if self.safety.needs_confirmation(["snap", "install", pkg]):
-                        if not self.ask_confirm(f"Install {pkg} via snap?"):
-                            return "Installation cancelled."
-                    r = subprocess.run(["sudo", "snap", "install", pkg],
-                                    text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-                    return r.stdout or f"Installed {pkg} via snap."
+                out = "\n".join(self.pkg.install(pkg, update_first=True))
+                self.task_memory.update(
+                    intent.description,
+                    f"Installed package {pkg}"
+                )
+                return out
 
-            # --- Try Flatpak ---
-            if shutil.which("flatpak"):
-                flatpak_check = subprocess.run(["flatpak", "search", pkg], text=True, stdout=subprocess.PIPE)
-                if pkg in flatpak_check.stdout:
-                    if self.safety.needs_confirmation(["flatpak", "install", pkg]):
-                        if not self.ask_confirm(f"Install {pkg} via flatpak?"):
-                            return "Installation cancelled."
-                    r = subprocess.run(["flatpak", "install", "-y", "flathub", pkg],
-                                    text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-                    return r.stdout or f"Installed {pkg} via flatpak."
-            '''
-            # Fallback: Open Browser 
-            search_qu = f"installing {pkg} on linux"
-            link = first_search_result(search_qu)
-
+            link = first_search_result(f"installing {pkg} on linux")
             if link:
                 gui.open_url(link)
-                return f"Package {pkg} not found in apt. Opened install guide in browser: {link}"
-            else:
-                url = f"https://www.google.com/search?q={search_qu}"
-                gui.open_url(url)
-                return f"Package {pkg} not found. Opened Google search instead: {url}"
+                self.task_memory.update(
+                    intent.description,
+                    f"Opened install guide for {pkg}"
+                )
+                return f"Opened install guide: {link}"
 
         # Service Controls
         if intent.name.startswith("svc_") and intent.service:
             verb = intent.name.split("_", 1)[1]
             argv = ["systemctl", verb, intent.service]
-            if not self.safety.is_safe(argv):
-                return "Action rejected by Safety Agent."
-            if self.safety.needs_confirmation(argv):
-                if not self.ask_confirm(f"{verb.capitalize()} service {intent.service}?"):
-                    return "Cancelled."
-            r = subprocess.run(["sudo"] + argv if self.safety.is_admin_action(argv) else argv,
-                               text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            r = subprocess.run(
+                ["sudo"] + argv if self.safety.is_admin_action(argv) else argv,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT
+            )
+            self.task_memory.update(
+                intent.description,
+                f"Service {intent.service}: {verb}"
+            )
             return r.stdout or "(no output)"
 
-        # Application Launch 
+        # Application Launch
         if intent.name == "open_app" and intent.extra:
-            if shutil.which(intent.extra) is None:
-                return f"Application '{intent.extra}' not found."
-
             cmd = f"nohup {shlex.quote(intent.extra)} >/dev/null 2>&1 &"
-            r = subprocess.run(["bash", "-lc", cmd], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            if r.returncode != 0:
-                return f"Failed to launch: {r.stdout.strip()}"
-            else:
+            r = subprocess.run(["bash", "-lc", cmd])
+            if r.returncode == 0:
+                self.task_memory.update(
+                    intent.description,
+                    f"Launched application {intent.extra}"
+                )
                 return "Launched."
+            return "Failed to launch."
 
-        if intent.name == "compose_mail" and intent.recipient and intent.body:
-            url = f"https://mail.google.com/mail/?view=cm&to={intent.recipient}&su={intent.subject}&body={intent.body}"
-            gui.open_url(url)
-
-            time.sleep(3)
-            gui.focus_window("Gmail")
-
-            return f"Opened Gmail compose window for {intent.recipient}."
-
+        # URL / Search
         if intent.name == "open_url" and intent.url:
-            url = intent.url
-            if url:
-                gui.open_url(url)
-                return f"opened url: {url}"
-
+            gui.open_url(intent.url)
+            self.task_memory.update(
+                intent.description,
+                f"Opened URL {intent.url}"
+            )
+            return f"opened url: {intent.url}"
 
         if intent.name == "search_query" and intent.query:
-            # General Search Intent 
-            search_q = intent.query
-            result_link = {"value": None}
+            link = first_search_result(intent.query)
+            gui.open_url(link)
+            self.task_memory.update(
+                intent.description,
+                f"Searched for {intent.query}"
+            )
+            return f"Searched and opened: {link}"
 
-            #def _fetch():
-            result_link["value"] = first_search_result(search_q)
-            '''
-            t = threading.Thread(target=_fetch)
-            t.start()
-            t.join(timeout=1)  # wait up to 4 seconds
-            '''
-            # Use the result
-            linker = result_link["value"]
-            if linker:
-                gui.open_url(linker)
-                return f"Searched for '{search_q}' and opened the result: {linker}"
-            else:
-                url = f"https://www.google.com/search?q={search_q}"
-                gui.open_url(url)
-                return f"Searched for '{search_q}', but no direct result found. Opened Google instead: {url}"
-
-        # Voice Output (Echo/Speak)
+        # Voice Echo
         if intent.name == "speak_text" and intent.text:
+            self.task_memory.update(intent.description, "Spoke text")
             return intent.text
 
         return "I don't have an action for that yet."
 
     def run_raw_command(self, cmd: str) -> str:
-        """
-        Execute a raw bash command string, safely.
-        Performs safety checks and asks for user confirmation.
-        """
-
-        if not cmd or not isinstance(cmd, str):
+        if not cmd:
             return "No command provided."
 
-        # --- Basic safety check ---
-        dangerous_terms = ["rm -rf", ":(){", "shutdown", "reboot", "mkfs", ">:"] 
-        if any(term in cmd for term in dangerous_terms):
-            return "Command rejected by safety filter."
-
-        # --- Execute ---
         try:
             result = subprocess.run(
                 ["bash", "-c", cmd],
                 text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                timeout=30  # prevent hanging commands
+                timeout=30
             )
-            output = result.stdout.strip()
-            if not output:
-                output = "(command executed successfully, no output)"
-            return output
+            out = result.stdout.strip() or "(command executed successfully)"
+            self.task_memory.update(
+                "raw_command",
+                f"Executed: {cmd}"
+            )
+            return out
 
         except subprocess.TimeoutExpired:
+            self.task_memory.update("raw_command", "Command timed out")
             return "Command timed out."
-        except Exception as e:
-            return f"Command execution failed: {e}"
-

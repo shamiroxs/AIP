@@ -4,6 +4,8 @@ import sys
 from assistant.coordinator import Coordinator
 from assistant.agents.voice_input import VoiceInputAgent
 
+from assistant.memory.conversation_memory import ConversationMemory
+from assistant.memory.task_memory import TaskMemory
 import os, zipfile, urllib.request, pathlib
 
 def terminal_input_loop(handler):
@@ -54,21 +56,46 @@ def main():
     ap.add_argument("--text", help="Run a single text command (no mic). Example: --text 'assistant check disk'")
     args = ap.parse_args()
 
+    conversation_memory = ConversationMemory()
+    task_memory = TaskMemory()
+
     c = Coordinator()
+    def handle_text_with_memory(user_text: str):
+        # Store user input
+        conversation_memory.add("user", user_text)
+
+        # Resume / continue handling
+        if user_text.lower() in ("continue", "resume", "go on"):
+            task = task_memory.current_task()
+            if task:
+                c.resume_task(task)
+            else:
+                print("No active task to continue.")
+            return
+
+        # Normal flow
+        response = c.handle_text(user_text)
+
+        # Store assistant response (if any)
+        if response:
+            conversation_memory.add("assistant", response)
+
     if args.text:
-        c.handle_text(args.text)
+        handle_text_with_memory(args.text)
         return
+
     # Start terminal input thread
     terminal_thread = threading.Thread(
         target=terminal_input_loop,
-        args=(c.handle_text,),
+        args=(handle_text_with_memory,),
         daemon=True
     )
     terminal_thread.start()
 
     # Continuous voice mode
     v = VoiceInputAgent()
-    v.listen(c.handle_text)
+    v.listen(handle_text_with_memory)
+
 
 if __name__ == "__main__":
     ensure_vosk_model()

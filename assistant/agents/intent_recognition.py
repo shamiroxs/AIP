@@ -7,6 +7,7 @@ from typing import Optional
 @dataclass
 class Intent:
     name: str
+    description: str   
     package: Optional[str] = None
     service: Optional[str] = None
     pid: Optional[int] = None
@@ -31,7 +32,7 @@ class IntentRecognitionAgent:
         if m:
             pkg = m.group(1)
             ver = m.group(2)
-            return Intent(name="install_package", package=pkg, extra=ver)
+            return Intent(name="install_package", description=f"Install package {pkg}", package=pkg, extra=ver)
 
         m = re.match(r"(?:is|check if|is there)\s+([a-z0-9\-\._]+)\s+(?:installed|present)?", t)
         if m:
@@ -44,7 +45,7 @@ class IntentRecognitionAgent:
         if "disk" in t or "storage" in t:
             if "cleanup" in t or "save space" in t or "free space" in t:
                 return Intent(name="disk_cleanup")
-            return Intent(name="check_disk")
+            return Intent(name="check_disk", description="Check disk usage")
         if "memory" in t or "ram" in t:
             return Intent(name="check_memory")
 
@@ -78,7 +79,7 @@ class IntentRecognitionAgent:
 
         m = re.match(r"(?:open|launch|start)\s+([a-z0-9\-\._]+)(?:\s+app|browser)?", t)
         if m:
-            return Intent(name="open_app", extra=m.group(1))
+            return Intent(name="open_app",description=f"Open application {m.group(1)}", extra=m.group(1))
 
         # Email intent
         m = re.match(r"(?:send|compose|mail)\s+to\s+([^\s]+@[^\s]+)\s+(.+)", t)
@@ -96,11 +97,11 @@ class IntentRecognitionAgent:
         m = re.match(r"(?:search|find|look for)\s+(.+)", t)
         if m:
             query = m.group(1)
-            return Intent(name="search_query", query=query)
+            return Intent(name="search_query",description=f"Search for {query}", query=query)
 
         # Misc
         m = re.match(r"(?:say|speak|echo)\s+(.+)", t)
         if m:
             return Intent(name="speak_text", text=m.group(1))
 
-        return Intent(name="unknown")
+        return Intent(name="unknown", description="Unknown user request")
