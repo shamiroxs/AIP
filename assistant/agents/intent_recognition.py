@@ -7,7 +7,7 @@ from typing import Optional
 @dataclass
 class Intent:
     name: str
-    description: str   
+    description: str = "" 
     package: Optional[str] = None
     service: Optional[str] = None
     pid: Optional[int] = None
@@ -36,35 +36,35 @@ class IntentRecognitionAgent:
 
         m = re.match(r"(?:is|check if|is there)\s+([a-z0-9\-\._]+)\s+(?:installed|present)?", t)
         if m:
-            return Intent(name="check_installed", package=m.group(1))
+            return Intent(name="check_installed", description=f"Check whether package {m.group(1)} is installed", package=m.group(1))
 
         m = re.match(r"(?:policy|apt policy)\s+([a-z0-9\-\._]+)", t)
         if m:
-            return Intent(name="pkg_policy", package=m.group(1))
+            return Intent(name="pkg_policy", description=f"Show package policy for {m.group(1)}", package=m.group(1))
 
         if "disk" in t or "storage" in t:
             if "cleanup" in t or "save space" in t or "free space" in t:
                 return Intent(name="disk_cleanup")
             return Intent(name="check_disk", description="Check disk usage")
         if "memory" in t or "ram" in t:
-            return Intent(name="check_memory")
+            return Intent(name="check_memory", description="Check memory and RAM usage")
 
         m = re.match(r"(?:status|start|stop|restart|enable|disable)\s+([a-zA-Z0-9@.\-_]+)", t)
         if m:
             verb = t.split()[0]
-            return Intent(name=f"svc_{verb}", service=m.group(1))
+            return Intent(name=f"svc_{verb}", description=f"{verb.capitalize()} system service {m.group(1)}", service=m.group(1))
 
         m = re.match(r"kill\s+pid\s+(\d+)", t)
         if m:
-            return Intent(name="kill_pid", pid=int(m.group(1)))
+            return Intent(name="kill_pid", description=f"Kill process with PID {m.group(1)}", pid=int(m.group(1)))
         m = re.match(r"kill\s+([a-z0-9\-\._]+)", t)
         if m:
-            return Intent(name="kill_name", extra=m.group(1))
+            return Intent(name="kill_name", description=f"Kill all processes matching name {m.group(1)}", extra=m.group(1))
 
         m = re.match(r"top(?:\s+(\d+))?", t)
         if m:
             n = int(m.group(1)) if m.group(1) else 10
-            return Intent(name="top_processes", count=n)
+            return Intent(name="top_processes", description=f"Show top {n} running processes", count=n)
 
         # GUI / App intents
         m = re.match(r"(?:open|go to|visit)\s+([^\s]+)", t, re.IGNORECASE)
@@ -72,10 +72,10 @@ class IntentRecognitionAgent:
             url = m.group(1)
 
             if url.startswith("http://") or url.startswith("https://"):
-                return Intent(name="open_url", url=url)
+                return Intent(name="open_url", description=f"Open URL {url}", url=url)
 
             elif re.match(r".+\.[a-zA-Z]{2,}(/.*)?$", url):
-                return Intent(name="open_url", url="https://" + url)
+                return Intent(name="open_url", description=f"Open URL {url}", url="https://" + url)
 
         m = re.match(r"(?:open|launch|start)\s+([a-z0-9\-\._]+)(?:\s+app|browser)?", t)
         if m:
@@ -88,6 +88,7 @@ class IntentRecognitionAgent:
             body = m.group(2)
             return Intent(
                 name="compose_mail",
+                description=f"Compose email to {recipient}",
                 recipient=recipient,
                 body=body,
                 subject="",  # subject can be added later if user specifies
@@ -102,6 +103,6 @@ class IntentRecognitionAgent:
         # Misc
         m = re.match(r"(?:say|speak|echo)\s+(.+)", t)
         if m:
-            return Intent(name="speak_text", text=m.group(1))
+            return Intent(name="speak_text", description="Speak the provided text aloud", text=m.group(1))
 
         return Intent(name="unknown", description="Unknown user request")

@@ -10,7 +10,7 @@ from assistant.agents.intent_recognition import Intent
 from assistant.utils.logger import get_logger
 from assistant.utils.search import first_search_result, check_network
 from assistant.agents.gui_agent import GUIAgent
-from assistant.memory.task_memory import TaskMemory   # ✅ Layer 3
+from assistant.memory.task_memory import TaskMemory   
 
 log = get_logger(__name__)
 gui = GUIAgent()
@@ -24,7 +24,7 @@ class ActionExecutionAgent:
         self.pkg = PackageManagerAgent()
         self.mon = ProcessMonitorAgent()
         self.ask_confirm = confirm_callable
-        self.task_memory = TaskMemory()   # ✅ Layer 3
+        self.task_memory = TaskMemory()   
 
     def run(self, intent: Intent) -> str:
 
@@ -125,6 +125,15 @@ class ActionExecutionAgent:
                 )
                 return "Launched."
             return "Failed to launch."
+        #send a mail
+        if intent.name == "compose_mail" and intent.recipient and intent.body:
+            url = f"https://mail.google.com/mail/?view=cm&to={intent.recipient}&su={intent.subject}&body={intent.body}"
+            gui.open_url(url)
+
+            time.sleep(3)
+            gui.focus_window("Gmail")
+
+            return f"Opened Gmail compose window for {intent.recipient}."
 
         # URL / Search
         if intent.name == "open_url" and intent.url:
